@@ -1,11 +1,14 @@
+////////////////////////////////////////////////////////////
+// File: lunarLander.cpp
+// Author: Harry Oldham
+// Date Created: 9/11/2019
+// Brief: Lunar Lander assingment project for CT4019 
+//////////////////////////////////////////////////////////// 
+#include <gameObjects.h>
 #include <windows.h>
 #include <chrono>
 #include <string>
 
-//Defines
-#define WIDTH 150
-#define HEIGHT 40
-#define FRAME_RATE 10
 //Console Parameters 
 #pragma region Console Buffer Params
 SMALL_RECT windowSize{ 0, 0, WIDTH - 1, HEIGHT - 1 };
@@ -30,19 +33,6 @@ typedef std::chrono::high_resolution_clock HiResClock;
 typedef std::chrono::duration<float> TimeDiff;
 
 //Game Constants 
-const int PlayerWidth = 2;
-const int PlayerHeight = 3;
-const int PlayerCharacters[PlayerWidth * PlayerHeight] = {
-	'_','_',
-	'|','|',
-	'/','\\'
-};
-const int PlayerColours[PlayerWidth * PlayerHeight] = {
-	0xB, 0xB,
-	0xB, 0xB,
-	0xB,0xB,
-};
-
 int BackGroundCharacters[WIDTH * HEIGHT] = {
 
 	' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',
@@ -124,8 +114,8 @@ const int Key2 = '2';
 const int Key3 = '3';
 const int Key4 = '4';
 
-const float ACCELERATION_RATE = 0.3f;
-const float DECELERATION_RATE = 0.1f;
+const float ACCELERATION_RATE = 1.0f;
+const float DECELERATION_RATE = 0.6f;
 
 //ENUMS
 
@@ -148,6 +138,8 @@ GAME_STATE currentGameState = PLAY;
 float splashDuration = 0.0f;
 bool isAccelerating = false;
 float landerAcceleration = 0.0f;
+bool hasLanded = false;
+bool hasCrashed = false;
 
 //Functions
 void update();
@@ -178,8 +170,6 @@ int main()
 			update();
 			//cache the timestamp of this frame
 			previousFrameTime = currentFrameTime;
-
-
 		}
 
 		draw();
@@ -233,47 +223,70 @@ void update() {
 		{
 			exitGame = true;
 		}
-		if (GetAsyncKeyState(KeyW))
+		if(!hasLanded && !hasCrashed)
 		{
-			isAccelerating = true;
-		}
-		if (GetAsyncKeyState(KeyA))
-		{
-			--playerXPos;
-		}
-		if (GetAsyncKeyState(KeyS))
-		{
-			++playerYPos;
-		}
-		if (GetAsyncKeyState(KeyD))
-		{
-			++playerXPos;
+			if (GetAsyncKeyState(KeyW))
+			{
+				isAccelerating = true;
+			}
+			if (GetAsyncKeyState(KeyA))
+			{
+				--playerXPos;
+			}
+			if (GetAsyncKeyState(KeyS))
+			{
+				++playerYPos;
+			}
+			if (GetAsyncKeyState(KeyD))
+			{
+				++playerXPos;
+			}
+
+			if (isAccelerating) {
+				landerAcceleration += (ACCELERATION_RATE * deltaTime);
+			}
+			else {
+				landerAcceleration -= (DECELERATION_RATE * deltaTime);
+			}
+
+			//reset acceleration flag
+			isAccelerating = false;
+
+			landerAcceleration = ClampFloat(landerAcceleration, 0.0f, 1.5f);
+
+			if (landerAcceleration >= 1.0f) // remove this later and put it at the top
+			{
+				--playerYPos;
+			}
+			else if (landerAcceleration < 0.5f)
+			{
+				++playerYPos;
+			}
+			//clamp input
+			playerXPos = ClampInt(playerXPos, 0, (WIDTH - PlayerWidth));
+			playerYPos = ClampInt(playerYPos, 0, (HEIGHT - PlayerHeight));
+
+			//gets the two characters underneath the character array
+			char bottomLeftchar = BackGroundCharacters[playerXPos + WIDTH * (playerYPos + (PlayerHeight - 1))];
+			char bottomRightchar = BackGroundCharacters[(playerXPos + (PlayerWidth - 1)) + WIDTH * (playerYPos + (PlayerHeight - 1))];
+
+			//check to either land or crash
+			//check for landing
+			if (bottomLeftchar != ' ' || bottomRightchar != ' ')
+			{
+				if (bottomLeftchar == '_' && bottomRightchar == '_')
+				{
+					hasLanded = true;
+				}
+				//check to see it the lander hits something that isn't a landing zone
+				else if (bottomLeftchar != ' ' || bottomRightchar != ' ')
+				{
+					hasCrashed = true;
+				}
+			}
 		}
 
-		if (isAccelerating) {
-			landerAcceleration += (ACCELERATION_RATE * deltaTime);
-		}
-		else {
-			landerAcceleration -= (DECELERATION_RATE * deltaTime);
-		}
-
-		//reset acceleration flag
-		isAccelerating = false;
-
-		landerAcceleration = ClampFloat(landerAcceleration, 0.0f, 1.5f);
-
-		if (landerAcceleration >= 1.0f) // remove this later and put it at the top
-		{
-			--playerYPos;
-		}
-		else if (landerAcceleration < 0.5f)
-		{
-			++playerYPos;
-		}
-		//clamp input
-		playerXPos = ClampInt(playerXPos, 0, (WIDTH - PlayerWidth));
-		playerYPos = ClampInt(playerYPos, 0, (HEIGHT - PlayerHeight));
-
+		//clears the previous frame of animation before drawing the next one
 		ClearScreen(consoleBuffer);
 
 		//Draw Background Image
@@ -282,6 +295,16 @@ void update() {
 
 		//Draw Player Image
 		WriteImageToBuffer(consoleBuffer, PlayerCharacters, PlayerColours, PlayerHeight, PlayerWidth, playerXPos, playerYPos);
+
+		//end game text
+		if (hasLanded)
+		{
+			WriteTextToBuffer(consoleBuffer, "Touchdown! You did it!", WIDTH / 2, HEIGHT / 2);
+		}
+		else if (hasCrashed)
+		{
+			WriteTextToBuffer(consoleBuffer, "Oops! Lander Down! ", WIDTH / 2, HEIGHT / 2);
+		}
 
 		//Draw UI text
 		WriteTextToBuffer(consoleBuffer, "SCORE: ", 1, 0);
@@ -301,7 +324,7 @@ void update() {
 	}
 
 	}
-	
+
 }
 
 void draw()
